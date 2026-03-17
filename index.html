@@ -302,11 +302,72 @@ function handleVariantImage(vi) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       formVariants[vi].image = ev.target.result;
-      render();
+      renderModal();
     };
     reader.readAsDataURL(file);
   };
   input.click();
+}
+
+// ── Build modal body HTML ──
+function buildModalBody() {
+  let html = `
+    <div class="form-row">
+      <div class="form-group"><label>Code *</label><input id="f-id" value="${esc(formId)}" placeholder="e.g. 001" oninput="formId=this.value"></div>
+      <div class="form-group"><label>Name</label><input id="f-name" value="${esc(formName)}" placeholder="Optional" oninput="formName=this.value"></div>
+      <div class="form-group" style="max-width:110px"><label>Price *</label><input id="f-price" type="number" value="${esc(formPrice)}" placeholder="140" oninput="formPrice=this.value"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <label style="font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px">Color Variants</label>
+      <button class="btn btn-outline btn-small" onclick="formVariants.push(newVariant());renderModal()">${ICO.plus} Add Color</button>
+    </div>`;
+
+  formVariants.forEach((v, vi) => {
+    const colorGrid = colors.map((c,ci) => {
+      const sel = v.color.toLowerCase() === c.name.toLowerCase();
+      const isLight = LIGHT_COLORS.includes(c.hex);
+      return `<button class="color-pick-btn${sel?' selected':''}" style="background:${c.hex}${isLight && !sel ? ';border:2px solid var(--border)':''}" onclick="selectColor(${vi},${ci})" title="${esc(c.name)}">${sel?(isLight?ICO.checkDark:ICO.check):''}</button>`;
+    }).join('');
+
+    const sizeChecks = PRESET_SIZES.map(s => {
+      const arr = (v.sizes||'').split(',').map(x=>x.trim()).filter(Boolean);
+      const checked = arr.includes(s);
+      return `<div class="size-checkbox"><input type="checkbox" id="sz${vi}-${s}"${checked?' checked':''} onchange="toggleSize(${vi},'${s}')"><label for="sz${vi}-${s}">${s}</label></div>`;
+    }).join('');
+
+    html += `<div class="variant-block"><div class="variant-form-row">
+      <div class="variant-image-upload" onclick="handleVariantImage(${vi})">
+        ${v.image?`<img src="${v.image}">`:ICO.img}
+      </div>
+      <div class="variant-form-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px">Color</label>
+          ${formVariants.length>1?`<button class="btn-icon danger" onclick="removeVariant(${vi})">${ICO.trash}</button>`:''}
+        </div>
+        <div class="color-picker-grid">${colorGrid}</div>
+        ${v.color?`<div style="font-size:11px;color:var(--text-mid);margin-bottom:4px">Selected: <strong>${esc(v.color)}</strong></div>`:''}
+        <div class="form-group" style="margin-bottom:0"><label>Sizes</label><div class="size-checkboxes">${sizeChecks}</div></div>
+        <div class="soldout-toggle">
+          <div class="toggle-switch${v.soldOut?' active':''}" onclick="formVariants[${vi}].soldOut=!formVariants[${vi}].soldOut;renderModal()"></div>
+          <span>${v.soldOut?'Sold Out':'In Stock'}</span>
+        </div>
+      </div>
+    </div></div>`;
+  });
+
+  return html;
+}
+
+// ── Only update the modal body (no flicker) ──
+function renderModal() {
+  const modalBody = document.querySelector('.modal-body');
+  if (modalBody) {
+    const scrollY = modalBody.scrollTop;
+    modalBody.innerHTML = buildModalBody();
+    modalBody.scrollTop = scrollY;
+  } else {
+    render();
+  }
 }
 
 // ── Render ──
@@ -408,54 +469,12 @@ function render() {
   if (showDressModal) {
     html += `<div class="modal-overlay" onclick="closeDressModal()"><div class="modal" onclick="event.stopPropagation()">
       <div class="modal-header"><h2>${editingIndex!==null?'Edit Dress':'Add New Dress'}</h2><button class="btn-icon" onclick="closeDressModal()">${ICO.close}</button></div>
-      <div class="modal-body">
-        <div class="form-row">
-          <div class="form-group"><label>Code *</label><input id="f-id" value="${esc(formId)}" placeholder="e.g. 001" oninput="formId=this.value"></div>
-          <div class="form-group"><label>Name</label><input id="f-name" value="${esc(formName)}" placeholder="Optional" oninput="formName=this.value"></div>
-          <div class="form-group" style="max-width:110px"><label>Price *</label><input id="f-price" type="number" value="${esc(formPrice)}" placeholder="140" oninput="formPrice=this.value"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <label style="font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px">Color Variants</label>
-          <button class="btn btn-outline btn-small" onclick="formVariants.push(newVariant());render()">${ICO.plus} Add Color</button>
-        </div>`;
-
-    formVariants.forEach((v, vi) => {
-      const colorGrid = colors.map((c,ci) => {
-        const sel = v.color.toLowerCase() === c.name.toLowerCase();
-        const isLight = LIGHT_COLORS.includes(c.hex);
-        return `<button class="color-pick-btn${sel?' selected':''}" style="background:${c.hex}${isLight && !sel ? ';border:2px solid var(--border)':''}" onclick="selectColor(${vi},${ci})" title="${esc(c.name)}">${sel?(isLight?ICO.checkDark:ICO.check):''}</button>`;
-      }).join('');
-
-      const sizeChecks = PRESET_SIZES.map(s => {
-        const arr = (v.sizes||'').split(',').map(x=>x.trim()).filter(Boolean);
-        const checked = arr.includes(s);
-        return `<div class="size-checkbox"><input type="checkbox" id="sz${vi}-${s}"${checked?' checked':''} onchange="toggleSize(${vi},'${s}')"><label for="sz${vi}-${s}">${s}</label></div>`;
-      }).join('');
-
-      html += `<div class="variant-block"><div class="variant-form-row">
-        <div class="variant-image-upload" onclick="handleVariantImage(${vi})">
-          ${v.image?`<img src="${v.image}">`:ICO.img}
-        </div>
-        <div class="variant-form-content">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <label style="font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:0.5px">Color</label>
-            ${formVariants.length>1?`<button class="btn-icon danger" onclick="removeVariant(${vi})">${ICO.trash}</button>`:''}
-          </div>
-          <div class="color-picker-grid">${colorGrid}</div>
-          ${v.color?`<div style="font-size:11px;color:var(--text-mid);margin-bottom:4px">Selected: <strong>${esc(v.color)}</strong></div>`:''}
-          <div class="form-group" style="margin-bottom:0"><label>Sizes</label><div class="size-checkboxes">${sizeChecks}</div></div>
-          <div class="soldout-toggle">
-            <div class="toggle-switch${v.soldOut?' active':''}" onclick="formVariants[${vi}].soldOut=!formVariants[${vi}].soldOut;render()"></div>
-            <span>${v.soldOut?'Sold Out':'In Stock'}</span>
-          </div>
-        </div>
-      </div></div>`;
-    });
-
-    html += `</div><div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeDressModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveDress()">${editingIndex!==null?'Save Changes':'Add Dress'}</button>
-    </div></div></div>`;
+      <div class="modal-body">${buildModalBody()}</div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDressModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveDress()">${editingIndex!==null?'Save Changes':'Add Dress'}</button>
+      </div>
+    </div></div>`;
   }
 
   // ── Color Modal ──
@@ -543,15 +562,15 @@ function deleteDress(idx) {
 function selectColor(vi, ci) {
   formVariants[vi].color = colors[ci].name;
   formVariants[vi].colorHex = colors[ci].hex;
-  render();
+  renderModal();
 }
 function toggleSize(vi, size) {
   const arr = (formVariants[vi].sizes||'').split(',').map(s=>s.trim()).filter(Boolean);
   if (arr.includes(size)) formVariants[vi].sizes = arr.filter(s=>s!==size).join(',');
   else formVariants[vi].sizes = [...arr,size].sort((a,b)=>+a-+b).join(',');
-  render();
+  renderModal();
 }
-function removeVariant(vi) { if (formVariants.length<=1) return; formVariants.splice(vi,1); render(); }
+function removeVariant(vi) { if (formVariants.length<=1) return; formVariants.splice(vi,1); renderModal(); }
 
 function showPreview(imgLen) {
   // Find the image from the currently expanded card variants
