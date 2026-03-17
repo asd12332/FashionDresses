@@ -162,7 +162,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-he
 </head>
 <body>
 <div id="app" class="app"></div>
-<input type="file" id="import-input" accept=".json,application/json,text/plain,*/*" style="display:none">
+<input type="file" id="import-input" style="display:none">
 
 <script>
 // ═══════════════════════════════════════
@@ -245,17 +245,28 @@ function esc(s) { const d=document.createElement('div');d.textContent=s;return d
 
 // ── Export / Import ──
 function exportData() {
-  const data = JSON.stringify({dresses, colors, exportedAt: new Date().toISOString()});
-  const blob = new Blob([data], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'dress-inventory-' + new Date().toISOString().slice(0,10) + '.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('File saved!');
+  try {
+    const exportObj = {
+      dresses: dresses,
+      colors: colors,
+      exportedAt: new Date().toISOString()
+    };
+    const jsonStr = JSON.stringify(exportObj);
+    
+    // Method 1: data URI (more reliable on iOS Safari)
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+    const a = document.createElement('a');
+    a.href = dataUri;
+    a.download = 'dress-inventory-' + new Date().toISOString().slice(0,10) + '.json';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 100);
+    showToast('File saved!');
+  } catch(err) {
+    console.error('Export error:', err);
+    showToast('Error saving file');
+  }
 }
 
 function triggerImport() {
@@ -267,11 +278,32 @@ function triggerImport() {
 function handleImport(e) {
   const file = e.target.files[0];
   if (!file) return;
+  
+  showToast('Reading file...');
+  
   const reader = new FileReader();
   reader.onload = function(ev) {
     try {
       const text = ev.target.result;
-      const parsed = JSON.parse(text);
+      if (!text || text.length < 2) {
+        showToast('Error: File is empty');
+        return;
+      }
+      
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch(parseErr) {
+        console.error('JSON parse error:', parseErr);
+        showToast('Error: File is not valid JSON');
+        return;
+      }
+      
+      if (!parsed || typeof parsed !== 'object') {
+        showToast('Error: Invalid file format');
+        return;
+      }
+      
       if (parsed.dresses && Array.isArray(parsed.dresses)) {
         dresses = parsed.dresses;
       }
@@ -283,13 +315,14 @@ function handleImport(e) {
       showToast('Loaded ' + dresses.length + ' dresses!');
     } catch(err) {
       console.error('Import error:', err);
-      showToast('Error: Could not read file');
+      showToast('Error: ' + (err.message || 'Could not read file'));
     }
   };
-  reader.onerror = function() {
+  reader.onerror = function(err) {
+    console.error('FileReader error:', err);
     showToast('Error: Could not read file');
   };
-  reader.readAsText(file);
+  reader.readAsText(file, 'UTF-8');
 }
 
 // ── Filtering ──
