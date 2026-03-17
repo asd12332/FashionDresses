@@ -207,9 +207,33 @@ let newColorName = '', newColorHex = '#C4956A';
 
 function newVariant() { return {color:'',colorHex:'#C4956A',sizes:'',soldOut:false,image:null}; }
 
+// Compress image to max 800px and JPEG quality 0.6
+function compressImage(dataUrl, maxW, quality) {
+  return new Promise((resolve) => {
+    if (!dataUrl) { resolve(null); return; }
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = function() { resolve(dataUrl); };
+    img.src = dataUrl;
+  });
+}
+
 function save() {
-  localStorage.setItem('dress-inv-dresses', JSON.stringify(dresses));
-  localStorage.setItem('dress-inv-colors', JSON.stringify(colors));
+  try {
+    localStorage.setItem('dress-inv-dresses', JSON.stringify(dresses));
+    localStorage.setItem('dress-inv-colors', JSON.stringify(colors));
+  } catch(e) {
+    console.error('Storage error:', e);
+    showToast('Warning: Too much data for auto-save. Use Save button to export file.');
+  }
 }
 
 function getColorHex(name) {
@@ -346,8 +370,10 @@ function handleVariantImage(vi) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      formVariants[vi].image = ev.target.result;
+    reader.onload = async (ev) => {
+      // Compress image to save storage space
+      const compressed = await compressImage(ev.target.result, 800, 0.5);
+      formVariants[vi].image = compressed;
       renderModal();
     };
     reader.readAsDataURL(file);
@@ -594,10 +620,16 @@ function saveDress() {
     variants: formVariants.map(v => ({...v, color: v.color.trim()})),
     createdAt: editingIndex !== null ? dresses[editingIndex].createdAt : Date.now()
   };
+  const wasEditing = editingIndex !== null;
   if (editingIndex !== null) { dresses[editingIndex] = dress; }
   else { dresses.unshift(dress); expandedCards[dress.id + dress.createdAt] = true; }
-  save(); showDressModal = false; render();
-  showToast(editingIndex !== null ? 'Dress updated!' : 'Dress added!');
+  
+  // Close modal FIRST, then save and render
+  showDressModal = false;
+  editingIndex = null;
+  save();
+  render();
+  showToast(wasEditing ? 'Dress updated!' : 'Dress added!');
 }
 
 function deleteDress(idx) {
