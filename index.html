@@ -311,6 +311,15 @@ function handleVariantImage(vi) {
 
 // ── Render ──
 function render() {
+  // Save scroll positions before re-render
+  const pageScrollY = window.scrollY;
+  const modalBody = document.querySelector('.modal-body');
+  const modalScrollY = modalBody ? modalBody.scrollTop : 0;
+  // Save focused element info
+  const activeEl = document.activeElement;
+  const activeId = activeEl ? activeEl.id : null;
+  const activeSel = activeEl ? activeEl.selectionStart : null;
+
   const filtered = getFiltered();
   const totalStyles = dresses.length;
   const totalVariants = dresses.reduce((s,d) => s + d.variants.length, 0);
@@ -337,7 +346,7 @@ function render() {
       <div class="stat-card"><div class="stat-label">Sold Out</div><div class="stat-value" style="color:var(--soldout)">${soldOut}</div></div>
     </div>
     <div class="toolbar">
-      <div class="search-box">${ICO.search}<input placeholder="Search..." value="${esc(searchQuery)}" oninput="searchQuery=this.value;render()"></div>
+      <div class="search-box">${ICO.search}<input id="search-input" placeholder="Search..." value="${esc(searchQuery)}" oninput="searchQuery=this.value;render()"></div>
       <select class="filter-select" onchange="filterMode=this.value;render()">
         <option value="all"${filterMode==='all'?' selected':''}>All</option>
         <option value="instock"${filterMode==='instock'?' selected':''}>In Stock</option>
@@ -454,7 +463,7 @@ function render() {
     let colorRows = editColors.map((c,ci) => `
       <div class="color-manager-row">
         <div class="color-manager-swatch" style="background:${c.hex}"><input type="color" value="${c.hex}" onchange="editColors[${ci}].hex=this.value;render()"></div>
-        <input class="color-manager-name" value="${esc(c.name)}" oninput="editColors[${ci}].name=this.value">
+        <input class="color-manager-name" id="cname-${ci}" value="${esc(c.name)}" oninput="editColors[${ci}].name=this.value">
         <button class="btn-icon danger" onclick="editColors.splice(${ci},1);render()">${ICO.trash}</button>
       </div>`).join('');
 
@@ -465,7 +474,7 @@ function render() {
         <div class="color-manager-list">${colorRows}</div>
         <div class="add-color-row">
           <div class="color-manager-swatch" style="background:${newColorHex}"><input type="color" value="${newColorHex}" onchange="newColorHex=this.value;render()"></div>
-          <input type="text" value="${esc(newColorName)}" placeholder="New color name..." oninput="newColorName=this.value" onkeydown="if(event.key==='Enter')addColor()">
+          <input type="text" id="new-color-name" value="${esc(newColorName)}" placeholder="New color name..." oninput="newColorName=this.value" onkeydown="if(event.key==='Enter')addColor()">
           <button class="btn btn-primary btn-small" onclick="addColor()">${ICO.plus} Add</button>
         </div>
       </div>
@@ -482,6 +491,21 @@ function render() {
   }
 
   document.getElementById('app').innerHTML = html;
+
+  // Restore scroll positions after re-render
+  window.scrollTo(0, pageScrollY);
+  const newModalBody = document.querySelector('.modal-body');
+  if (newModalBody) newModalBody.scrollTop = modalScrollY;
+  // Restore focus and cursor position
+  if (activeId) {
+    const el = document.getElementById(activeId);
+    if (el) {
+      el.focus();
+      if (activeSel !== null && el.setSelectionRange) {
+        try { el.setSelectionRange(activeSel, activeSel); } catch(e) {}
+      }
+    }
+  }
 }
 
 // ── Actions ──
