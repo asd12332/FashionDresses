@@ -162,6 +162,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-he
 </head>
 <body>
 <div id="app" class="app"></div>
+<input type="file" id="import-input" accept=".json,application/json,text/plain,*/*" style="display:none">
 
 <script>
 // ═══════════════════════════════════════
@@ -257,26 +258,38 @@ function exportData() {
   showToast('File saved!');
 }
 
-function triggerImport() { document.getElementById('import-input').click(); }
+function triggerImport() {
+  const input = document.getElementById('import-input');
+  input.value = '';
+  input.click();
+}
 
 function handleImport(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (ev) => {
+  reader.onload = function(ev) {
     try {
-      const parsed = JSON.parse(ev.target.result);
-      if (parsed.dresses && Array.isArray(parsed.dresses)) dresses = parsed.dresses;
-      if (parsed.colors && Array.isArray(parsed.colors) && parsed.colors.length) colors = parsed.colors;
+      const text = ev.target.result;
+      const parsed = JSON.parse(text);
+      if (parsed.dresses && Array.isArray(parsed.dresses)) {
+        dresses = parsed.dresses;
+      }
+      if (parsed.colors && Array.isArray(parsed.colors) && parsed.colors.length) {
+        colors = parsed.colors;
+      }
       save();
       render();
       showToast('Loaded ' + dresses.length + ' dresses!');
     } catch(err) {
-      showToast('Error: Invalid file');
+      console.error('Import error:', err);
+      showToast('Error: Could not read file');
     }
   };
+  reader.onerror = function() {
+    showToast('Error: Could not read file');
+  };
   reader.readAsText(file);
-  e.target.value = '';
 }
 
 // ── Filtering ──
@@ -388,7 +401,6 @@ function render() {
   const inStock = totalVariants - soldOut;
 
   let html = `
-    <input type="file" id="import-input" accept=".json" style="display:none" onchange="handleImport(event)">
     <div class="header">
       <div class="header-left">
         <h1>Dress Inventory</h1>
@@ -606,6 +618,9 @@ document.addEventListener('click', (e) => {
     if (img && img.src) { previewImage = img.src; render(); }
   }
 });
+
+// Attach import listener (outside render so it persists)
+document.getElementById('import-input').addEventListener('change', handleImport);
 
 // Initial render
 render();
